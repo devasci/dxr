@@ -8,7 +8,10 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+
+#include "dxr-docs.h"
 
 #include <iostream>
 #include <map>
@@ -273,6 +276,15 @@ public:
 
   // All we need is to follow the final declaration.
   virtual void HandleTranslationUnit(ASTContext &ctx) {
+    std::string errorInfo;
+    {
+      std::string outfile = tmpdir + ci.getFrontendOpts().OutputFile;
+      outfile.replace(outfile.rfind("."), std::string::npos, ".json");
+      bool existed;
+      llvm::sys::fs::create_directories(outfile.substr(0, outfile.rfind("/")), existed);
+      llvm::raw_fd_ostream out(outfile.c_str(), errorInfo);
+      dxr::outputDocsForTU(ctx.getTranslationUnitDecl(), out);
+    }
     TraverseDecl(ctx.getTranslationUnitDecl());
 
     // Emit all files now

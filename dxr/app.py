@@ -8,6 +8,7 @@ from flask import (Blueprint, Flask, send_from_directory, current_app, escape,
 
 from dxr.query import Query, direct_result, fetch_results
 from dxr.server_utils import connect_db
+import dxr.docs
 
 
 # Look in the 'dxr' package for static files, templates, etc.:
@@ -150,6 +151,32 @@ def search():
     # Get search template and dump it to stdout
     return render_template(template, **arguments)
 
+@dxr_blueprint.route('/<tree>/docs/<int:docid>')
+def documentation(tree, docid):
+  """Show documentation for a single documentable object."""
+  config = current_app.config
+  arguments = {
+      # Common Template Variables
+      "wwwroot": config['WWW_ROOT'],
+      "tree": tree,
+      "trees": config['TREES'],
+      "config": config['TEMPLATE_PARAMETERS'],
+      "generated_date": config['GENERATED_DATE'],
+  }
+  template = "doc.html"
+  conn = connect_db(tree, current_app.instance_path)
+  if conn is None:
+    arguments["error"] = "Cannot connect to database."
+    template = "error.html"
+  else:
+    entity = dxr.docs.getDocumentedEntity(conn, current_app.instance_path,
+      tree, docid)
+    if entity is None:
+      arguments["error"] = "Cannot find documentation."
+      template = "error.html"
+    else:
+      arguments["docitem"] = entity
+  return render_template(template, **arguments)
 
 @dxr_blueprint.route('/<path:tree_and_path>')
 def browse(tree_and_path):

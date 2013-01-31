@@ -1,0 +1,51 @@
+{% extends "layout.html" %}
+
+{% block title %}{{docitem.getTitle()}} - DXR Documentation {% endblock %}
+
+{% set state_eof = True %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{wwwroot}}/static/doc.css" />
+  <script src="{{wwwroot}}/static/panel.js"></script>
+  {% if error %}
+  <script>
+    window.addEventListener('load', function(){
+      // Write a the error message to search tip
+      dxr.setErrorTip("{{error}}");
+    });
+  </script>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<h1>Documentation for {{docitem.getHeader()}}</h1>
+<!-- Inheritance information will eventually go here. -->
+<hr>
+{{docitem.getLocationString(wwwroot, tree)|safe}}<br>
+<code>{{docitem.getProlog()}}</code>
+<div class="topdoc">{{docitem.getFullDocumentation()|safe}}</div>
+<hr>
+<!-- Short documentation tables -->
+{% for group in docitem.getMemberGroups() %}
+  <h2 class="grouptitle">{{group.getName()}} Overview</h2>
+  <table class="docsummary">
+    {% for member in group.getMembers()|sort(attribute="shortname") %}
+      <tr><td><code>{{member.getPrename()}}</code></td>
+          <td><code><a href="{{member.getSummaryLink()}}">{{member.shortname}}</a>{{member.getPostname()}}</code>
+          <p>{{member.getBriefDocumentation()|safe}}</p></tr>
+    {% endfor %}
+  </table>
+{% endfor %}
+
+<!-- Detailed documentation tables -->
+{% for group in docitem.getMemberGroups() %}
+  <h2 class="grouptitle">{{group.getName()}} Detail</h2>
+  {% for member in group.getMembers() %}
+    <h3>{{member.shortname}}</h3>
+    <code>{{member.getPrename()}} {{member.shortname}}{{member.getPostname()}}</code><br>
+    {{member.getLocationString(wwwroot, tree)|safe}}<br>
+    <div class="docdetail">{{member.getFullDocumentation()|safe}}</div>
+    <hr>
+  {% endfor %}
+{% endfor %}
+{% endblock %}

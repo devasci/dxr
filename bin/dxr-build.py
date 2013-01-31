@@ -14,6 +14,7 @@ import sys
 import time
 
 import dxr
+import dxr.docs
 import dxr.utils
 import dxr.plugins
 import dxr.languages
@@ -369,6 +370,9 @@ def build_tree(tree, conn):
     # Let plugins post process
     for indexer in indexers:
         indexer.post_process(tree, conn)
+
+    # Build documentation database
+    dxr.docs.buildDatabase(conn, tree)
 
 
 def finalize_database(conn):

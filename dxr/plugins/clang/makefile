@@ -1,15 +1,15 @@
 LLVM_LIBS := $(shell llvm-config --libdir)
 CXXFLAGS := $(shell llvm-config --cflags) -Wall \
-	-fno-exceptions -fno-rtti \
+	-fno-exceptions -fno-rtti -std=c++11 \
 	-I$(shell llvm-config --includedir) $(if $(DEBUG),-O0 -g)
 LDFLAGS := -fPIC -g -Wl,-R -Wl,'$$ORIGIN' -L$(LLVM_LIBS) -shared
 
 build: libclang-index-plugin.so
 
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $^ -o $@
+%.o: %.cpp $(wildcard *.h)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-libclang-index-plugin.so: dxr-index.o sha1.o
+libclang-index-plugin.so: dxr-index.o sha1.o dxr-docs.o
 	$(CXX) $(LDFLAGS) $^ -o $@ -shared
 
 check: build

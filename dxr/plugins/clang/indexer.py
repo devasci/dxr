@@ -1,5 +1,6 @@
 import csv, cgi
 import json
+import dxr.docs
 import dxr.plugins
 import dxr.schema
 import os, sys
@@ -43,7 +44,11 @@ def post_process(tree, conn):
     temp_folder = os.path.join(tree.temp_folder, 'plugins', PLUGIN_NAME)
     for f in os.listdir(temp_folder):
         csv_path = os.path.join(temp_folder, f)
-        dump_indexer_output(conn, csv_path)
+        if os.path.isdir(csv_path):
+          dxr.docs.grabDocs(csv_path)
+          pass
+        elif csv_path[-4:] == '.csv':
+          dump_indexer_output(conn, csv_path)
 
     fixup_scope(conn)
     
