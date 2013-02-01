@@ -183,6 +183,33 @@ class DocumentationBuilder(object):
                                        self.tree.source_folder)
             node['location'] = ':'.join(parts)
 
+    def _remove_nodes(self):
+        ''' Filter out unnecessary entities from the documentation index. '''
+        newList = list()
+        adjustMap = dict()
+        for num in xrange(len(self.allEntities)):
+            entity = self.allEntities[num]
+            # We earlier processed the locations to all be relative to the
+            # source directory. If a path is outside, then this node is not
+            # useful for our documentation purposes and thus needs to go
+            # away. Mark it for removal in all subgroups
+            if entity['location'].startswith('..'):
+                adjustMap[num] = None
+            else:
+                # len(toRemove) nodes prior to this one will be deleted, so we
+                # need to adjust the numbers of successors
+                adjustMap[num] = len(newList)
+                newList.append(entity)
+
+        # We have our new list. Now go through the list and adjust the numbers.
+        for node in newList:
+            for group in node.get('members', []):
+                group['members'] = filter(lambda x : x != None,
+                    (adjustMap[x] for x in group['members']))
+
+        # Update the list of all nodes now
+        self.allEntities = newList
+
     def processDocumentation(self, doc):
       lines = doc.split('\n')
       outbuffer = ''
@@ -208,6 +235,7 @@ class DocumentationBuilder(object):
         # Clean up all of the raw nodes
         for node in self.allEntities:
             self._clean_raw_node(node)
+        self._remove_nodes()
 
         # Create the table in the database.
         conn.executescript("""CREATE TABLE IF NOT EXISTS documentation (
