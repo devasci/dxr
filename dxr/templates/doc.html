@@ -21,8 +21,10 @@
 <h1>Documentation for {{docitem.getHeader()}}</h1>
 <!-- Inheritance information will eventually go here. -->
 <hr>
-{{docitem.getLocationString(wwwroot, tree)|safe}}<br>
-<code>{{docitem.getProlog()}}</code>
+{% if not docitem.skip_prolog() %}
+  {{docitem.getLocationString(wwwroot, tree)|safe}}<br>
+  <code>{{docitem.getProlog()}}</code>
+{% endif %}
 <div class="topdoc">{{docitem.getFullDocumentation()|safe}}</div>
 <hr>
 <!-- Short documentation tables -->

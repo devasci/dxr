@@ -51,8 +51,22 @@ class DocumentableEntity(object):
   def getFullDocumentation(self):
     return self.fulldoc
 
+  def skip_prolog(self):
+    return False
+
 class FileEntity(DocumentableEntity):
-  pass
+    def __init__(self, jsondata, docid, lazyloader):
+        DocumentableEntity.__init__(self, jsondata, docid, lazyloader)
+        self.filename = self.location.split(':')[0]
+
+    def getTitle(self):
+        return os.path.basename(self.filename)
+
+    def getHeader(self):
+        return "file " + self.filename
+
+    def skip_prolog(self):
+        return True
 
 class NamespaceEntity(DocumentableEntity):
   def __init__(self, jsondata, docid, lazyloader):
@@ -65,11 +79,17 @@ class NamespaceEntity(DocumentableEntity):
   def getHeader(self):
     return "namespace " + self.qualifiedName
 
-  def getProlog(self):
-    return self.getHeader()
+  def skip_prolog(self):
+    return True
 
   def getSummaryLink(self):
     return str(self.docid)
+
+  def getPrename(self):
+    return "namespace"
+
+  def getPostname(self):
+    return ""
 
 class AggregateEntity(DocumentableEntity):
   def __init__(self, jsondata, docid, lazyloader):
@@ -166,6 +186,26 @@ class DocumentationBuilder(object):
         self.allEntities.append(jsonnode)
         return nextnum
 
+    def _make_file_nodes(self):
+        filemap = dict()
+        for num in xrange(len(self.allEntities)):
+            node = self.allEntities[num]
+            if 'location' not in node:
+                continue
+            filename = node['location'].split(':')[0]
+            if filename in filemap:
+                filemap[filename]['members'][0]['members'].append(num)
+            else:
+                filenode = {
+                    'doctype': 'file',
+                    'briefdoc': '',
+                    'fulldoc': '',
+                    'location': filename,
+                    'members': [{'listname': 'Things', 'members': [num]}]
+                    }
+                filemap[filename] = filenode
+                self.allEntities.append(filenode)
+
     def _clean_raw_node(self, node):
         ''' Process the raw node to clean it up for final presentation view.
             This will do things like fix documentation links, remove extra data,
@@ -236,6 +276,7 @@ class DocumentationBuilder(object):
         for node in self.allEntities:
             self._clean_raw_node(node)
         self._remove_nodes()
+        self._make_file_nodes()
 
         # Create the table in the database.
         conn.executescript("""CREATE TABLE IF NOT EXISTS documentation (
@@ -294,9 +335,17 @@ def getDocumentedEntity(conn, instance_path, tree, num):
     os.path.join(instance_path, 'trees', tree, '.dxr-docs.json'))
   return lazyloader.getEntity(num)
 
-def get_global_list(conn, instance_path, tree):
+global_lists = [
+    ("Namespaces", "namespace"),
+    ("Classes", "aggregate")
+]
+def get_global_lists(conn, instance_path, tree):
+    return list(get_global_lists_inner(conn, instance_path, tree))
+def get_global_lists_inner(conn, instance_path, tree):
     lazyloader = LazyDocumentationLoader(conn,
         os.path.join(instance_path, 'trees', tree, '.dxr-docs.json'))
-    return (lazyloader.getEntity(n['docid']) for n in conn.execute(
-        "SELECT docid FROM documentation WHERE kind=?", ("aggregate",))
-        .fetchall())
+    for pretty, kind in global_lists:
+      print kind
+      yield (pretty, (lazyloader.getEntity(n['docid']) for n in conn.execute(
+                      "SELECT docid FROM documentation WHERE kind=?", (kind,))
+                      .fetchall()))

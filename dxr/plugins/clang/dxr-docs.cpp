@@ -144,7 +144,7 @@ public:
   NamedEntityList(StringRef name) : mName(name) {}
 
   const std::string &getName() const { return mName; }
-  void addToList(DocumentableEntity *ent) { mEntities.push_back(ent); }
+  void addToList(DocumentableEntity *ent);
 
   void printJSON(raw_ostream &out);
 };
@@ -163,12 +163,15 @@ public:
 
   virtual ContainerEntity *containerize() { return NULL; }
 
+  bool isContained() const { return mContained; }
+  void setContained(bool contained) { mContained = contained; }
 protected:
   virtual void printJSONFields(raw_ostream &out);
 
 private:
   std::string mBriefDocumentation;
   std::string mFullDocumentation;
+  bool mContained;
 };
 
 class NamedEntity {
@@ -265,7 +268,7 @@ protected:
 };
 
 DocumentableEntity::DocumentableEntity(const Decl *source, DocumentedType t)
-: mDocType(t) {
+: mDocType(t), mContained(false) {
   ASTContext &ctxt = source->getASTContext();
   const RawComment *raw = ctxt.getRawCommentForAnyRedecl(source, NULL);
   if (raw) {
@@ -296,6 +299,11 @@ ClassEntity::ClassEntity(TagDecl *td, const char *kind)
 : DocumentableEntity(td, DocumentableEntity::Class),
   NamedEntity(td),
   mKind(kind) {
+}
+
+void NamedEntityList::addToList(DocumentableEntity *ent) {
+  mEntities.push_back(ent);
+  ent->setContained(true);
 }
 
 void NamedEntityList::printJSON(raw_ostream &out) {
@@ -685,6 +693,11 @@ bool DocGen::VisitNamespaceDecl(NamespaceDecl *d) {
 
   NamespaceEntity *ent = new NamespaceEntity(d);
   documentedNodes[d] = ent;
+  
+  // Add to the outer namespace, if present
+  ContainerEntity *cd = getContainerForDecl(d);
+  if (cd)
+    cd->addMemberEntity("Subnamespaces", ent);
   return true;
 }
 
@@ -692,6 +705,10 @@ void DocGen::extractDocumentation(raw_ostream &out) {
   bool needsComma = false;
   out << "[";
   for (auto node : documentedNodes) {
+    // Only print nodes out once.
+    if (node.second->isContained())
+      continue;
+
     if (needsComma)
       out << ",";
     needsComma = true;

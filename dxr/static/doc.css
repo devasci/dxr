@@ -48,6 +48,8 @@ table.docsummary a {
 
 ul#index {
     -moz-column-width: 20em;
+    column-width: 20em;
+    padding-left: 0;
 }
 ul#index li {
     list-style: none;

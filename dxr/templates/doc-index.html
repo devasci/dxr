@@ -18,10 +18,12 @@
 {% endblock %}
 
 {% block content %}
-<h1 class="grouptitle">Classes of {{tree}}</h1>
-<ul id="index">
-{% for member in list |sort(attribute="shortname") %}
-  <li><a href="{{member.getSummaryLink()}}">{{member.qualname}}</a></li>
+{% for type, list in lists %}
+  <h1 class="grouptitle">{{type}} of {{tree}}</h1>
+  <ul id="index">
+  {% for member in list |sort(attribute="shortname") %}
+    <li><a href="{{member.getSummaryLink()}}">{{member.qualname}}</a></li>
   {% endfor %}
-</ul>
+  </ul>
+{% endfor %}
 {% endblock %}

@@ -170,7 +170,7 @@ def docindex(tree):
         arguments["error"] = "Cannot connect to database."
         template = "error.html"
     else:
-        arguments["list"] = dxr.docs.get_global_list(conn,
+        arguments["lists"] = dxr.docs.get_global_lists(conn,
             current_app.instance_path, tree)
     return render_template(template, **arguments)
 
