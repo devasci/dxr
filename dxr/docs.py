@@ -23,13 +23,9 @@ class DocumentableEntity(object):
       setattr(self, key, value)
     self._resolvedMembers = False
 
-  def getMemberGroups(self):
+  def get_members(self):
     if not self._resolvedMembers:
-      for group in self.members:
-        group['members'] = [self._lazyloader.getEntity(n)
-                            for n in group['members']]
-      self.members = [NamedList(x['listname'], x['members'])
-                      for x in self.members]
+      self.members = [self._lazyloader.getEntity(n) for n in self.members]
       self._resolvedMembers = True
     return self.members
 
@@ -126,17 +122,6 @@ class LeafEntity(DocumentableEntity):
     return "" # XXX
 
 
-class NamedList(object):
-  def __init__(self, name, members):
-    self.name = name
-    self.members = members
-
-  def getName(self):
-    return self.name
-
-  def getMembers(self):
-    return self.members
-
 class DocumentationBuilder(object):
     def __init__(self, tree):
         self.tree = tree
@@ -159,9 +144,9 @@ class DocumentationBuilder(object):
         def add_this_and_children(jsondata):
             number = self._add_or_merge_node(jsondata)
             # Replace the children raw nodes with an actual number
-            for group in jsondata.get('members', []):
-                group['members'] = [add_this_and_children(sub)
-                                    for sub in group['members']]
+            if 'members' in jsondata:
+                jsondata['members'] = [add_this_and_children(sub)
+                                       for sub in jsondata['members']]
             return number
 
         # For all nodes in the input, add them
@@ -194,14 +179,14 @@ class DocumentationBuilder(object):
                 continue
             filename = node['location'].split(':')[0]
             if filename in filemap:
-                filemap[filename]['members'][0]['members'].append(num)
+                filemap[filename]['members'].append(num)
             else:
                 filenode = {
                     'doctype': 'file',
                     'briefdoc': '',
                     'fulldoc': '',
                     'location': filename,
-                    'members': [{'listname': 'Things', 'members': [num]}]
+                    'members': [num]
                     }
                 filemap[filename] = filenode
                 self.allEntities.append(filenode)
@@ -243,9 +228,9 @@ class DocumentationBuilder(object):
 
         # We have our new list. Now go through the list and adjust the numbers.
         for node in newList:
-            for group in node.get('members', []):
-                group['members'] = filter(lambda x : x != None,
-                    (adjustMap[x] for x in group['members']))
+            if 'members' in node:
+                node['members'] = filter(lambda x : x != None,
+                    (adjustMap[x] for x in node['members']))
 
         # Update the list of all nodes now
         self.allEntities = newList

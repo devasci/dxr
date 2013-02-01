@@ -136,26 +136,13 @@ void appendTemplateArguments(const TemplateDecl *td, std::string &outstring) {
 class DocumentableEntity;
 class ContainerEntity;
 
-class NamedEntityList {
-  std::string mName;
-  std::vector<DocumentableEntity *> mEntities;
-
-public:
-  NamedEntityList(StringRef name) : mName(name) {}
-
-  const std::string &getName() const { return mName; }
-  void addToList(DocumentableEntity *ent);
-
-  void printJSON(raw_ostream &out);
-};
-
 class DocumentableEntity {
 public:
   enum DocumentedType {
     File, Namespace, Class, Leaf
   };
 
-  DocumentableEntity(const Decl *source, DocumentedType t);
+  DocumentableEntity(const Decl *source, DocumentedType t, StringRef container);
 
   const DocumentedType mDocType;
 
@@ -172,6 +159,7 @@ private:
   std::string mBriefDocumentation;
   std::string mFullDocumentation;
   bool mContained;
+  std::string mContainerName;
 };
 
 class NamedEntity {
@@ -188,23 +176,10 @@ public:
 };
 
 class ContainerEntity {
-  SmallVector<NamedEntityList, 3> mMembers;
+  std::vector<DocumentableEntity *> mEntities;
 
 public:
-  void addMemberEntity(StringRef name, DocumentableEntity *sub) {
-    auto it = mMembers.begin();
-    while (it != mMembers.end()) {
-      if (it->getName() == name)
-        break;
-      ++it;
-    }
-    if (it == mMembers.end()) {
-      NamedEntityList newList(name);
-      it = mMembers.insert(it, newList);
-    }
-    it->addToList(sub);
-  };
-
+  void addMemberEntity(StringRef name, DocumentableEntity *sub);
   virtual void printJSONFields(raw_ostream &out);
 
   static bool classof(const DocumentableEntity *ent) {
@@ -235,7 +210,7 @@ class ClassEntity : public DocumentableEntity,
   std::string mProlog;
 
 public:
-  ClassEntity(TagDecl *td, const char *kind);
+  ClassEntity(TagDecl *td, const char *kind, StringRef container);
 
   virtual ContainerEntity *containerize() { return this; }
   static bool classof(const DocumentableEntity *ent) {
@@ -256,7 +231,7 @@ class LeafEntity : public DocumentableEntity,
   std::string mPreName, mPostName;
 
 public:
-  LeafEntity(NamedDecl *d) : DocumentableEntity(d, Leaf), NamedEntity(d) {}
+  LeafEntity(NamedDecl *d, StringRef container);
 
   StringRef getPreName() const { return mPreName; }
   void setPreName(StringRef preName) { mPreName = preName; }
@@ -267,8 +242,9 @@ protected:
   virtual void printJSONFields(raw_ostream &out);
 };
 
-DocumentableEntity::DocumentableEntity(const Decl *source, DocumentedType t)
-: mDocType(t), mContained(false) {
+DocumentableEntity::DocumentableEntity(const Decl *source, DocumentedType t,
+    StringRef container)
+: mDocType(t), mContained(false), mContainerName(container) {
   ASTContext &ctxt = source->getASTContext();
   const RawComment *raw = ctxt.getRawCommentForAnyRedecl(source, NULL);
   if (raw) {
@@ -291,24 +267,27 @@ NamedEntity::NamedEntity(NamedDecl *nd)
 }
 
 NamespaceEntity::NamespaceEntity(NamespaceDecl *nd)
-: DocumentableEntity(nd, DocumentableEntity::Namespace),
+: DocumentableEntity(nd, DocumentableEntity::Namespace, "Namespaces"),
   NamedEntity(nd) {
 }
 
-ClassEntity::ClassEntity(TagDecl *td, const char *kind)
-: DocumentableEntity(td, DocumentableEntity::Class),
+ClassEntity::ClassEntity(TagDecl *td, const char *kind, StringRef container)
+: DocumentableEntity(td, DocumentableEntity::Class, container),
   NamedEntity(td),
   mKind(kind) {
 }
 
-void NamedEntityList::addToList(DocumentableEntity *ent) {
-  mEntities.push_back(ent);
-  ent->setContained(true);
+LeafEntity::LeafEntity(NamedDecl *d, StringRef container)
+: DocumentableEntity(d, Leaf, container), NamedEntity(d) {
 }
 
-void NamedEntityList::printJSON(raw_ostream &out) {
-  out << "{\"listname\":\"" << mName;
-  out << "\",\"members\":[";
+void ContainerEntity::addMemberEntity(StringRef name, DocumentableEntity *sub) {
+  mEntities.push_back(sub);
+  sub->setContained(true);
+}
+
+void ContainerEntity::printJSONFields(raw_ostream &out) {
+  out << ",\"members\":[";
   bool needsComma = false;
   for (auto ent : mEntities) {
     if (needsComma)
@@ -316,7 +295,7 @@ void NamedEntityList::printJSON(raw_ostream &out) {
     needsComma = true;
     ent->printJSON(out);
   }
-  out << "]}";
+  out << "]";
 }
 
 void DocumentableEntity::printJSON(raw_ostream &out) {
@@ -328,6 +307,7 @@ void DocumentableEntity::printJSON(raw_ostream &out) {
   case Leaf: out << "leaf"; break;
   }
   out << "\"";
+  out << ",\"groupname\":\"" << mContainerName << "\"";
   printJSONFields(out);
   out << '}';
 }
@@ -342,18 +322,6 @@ void NamedEntity::printJSONFields(raw_ostream &out) {
   out << ",\"shortname\":\"" << mShortName << '"';
   out << ",\"location\":\"" << mFile << ":" <<
     mLine << ":" << mColumn << '"';
-}
-
-void ContainerEntity::printJSONFields(raw_ostream &out) {
-  out << ",\"members\":[";
-  bool needsComma = false;
-  for (auto list : mMembers) {
-    if (needsComma)
-      out << ",";
-    needsComma = true;
-    list.printJSON(out);
-  }
-  out << "]";
 }
 
 void NamespaceEntity::printJSONFields(raw_ostream &out) {
@@ -464,7 +432,14 @@ bool DocGen::VisitTagDecl(TagDecl *d) {
   if (d->getName().empty())
     return true;
 
-  ClassEntity *ent = new ClassEntity(getDef(d), d->getKindName());
+  const char *containerName;
+  switch (d->getTagKind()) {
+  case TTK_Struct: case TTK_Class: containerName = "Classes"; break;
+  case TTK_Union: containerName = "Unions"; break;
+  case TTK_Enum: containerName = "Enumerations"; break;
+  case TTK_Interface: containerName = "Interfaces"; break;
+  }
+  ClassEntity *ent = new ClassEntity(getDef(d), d->getKindName(), containerName);
 
   // XXX: prename = [access] [kind]
   std::string prename;
@@ -580,7 +555,7 @@ bool DocGen::VisitEnumConstantDecl(EnumConstantDecl *d) {
     // We are ignoring the enum this is in
     return true;
 
-  LeafEntity *leaf = new LeafEntity(d);
+  LeafEntity *leaf = new LeafEntity(d, "Enum constants");
   std::string buildPostName;
   buildPostName = " = ";
   // XXX: When do I use hex, when do i use decimal?
@@ -607,7 +582,7 @@ bool DocGen::VisitFunctionDecl(FunctionDecl *d) {
 
   const PrintingPolicy &pp(d->getASTContext().getPrintingPolicy());
 
-  LeafEntity *leaf = new LeafEntity(d);
+  LeafEntity *leaf = new LeafEntity(d, "Methods");
   std::string preName, postName;
 
   // Add in specifiers for the function

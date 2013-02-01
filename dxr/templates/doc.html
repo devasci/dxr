@@ -28,10 +28,10 @@
 <div class="topdoc">{{docitem.getFullDocumentation()|safe}}</div>
 <hr>
 <!-- Short documentation tables -->
-{% for group in docitem.getMemberGroups() %}
-  <h2 class="grouptitle">{{group.getName()}} Overview</h2>
+{% for group, members in docitem.get_members()|groupby(attribute="groupname") %}
+  <h2 class="grouptitle">{{group}} Overview</h2>
   <table class="docsummary">
-    {% for member in group.getMembers()|sort(attribute="shortname") %}
+    {% for member in members|sort(attribute="shortname") %}
       <tr><td><code>{{member.getPrename()}}</code></td>
           <td><code><a href="{{member.getSummaryLink()}}">{{member.shortname}}</a>{{member.getPostname()}}</code>
           <p>{{member.getBriefDocumentation()|safe}}</p></tr>
@@ -40,9 +40,9 @@
 {% endfor %}
 
 <!-- Detailed documentation tables -->
-{% for group in docitem.getMemberGroups() %}
-  <h2 class="grouptitle">{{group.getName()}} Detail</h2>
-  {% for member in group.getMembers() %}
+{% for group, members in docitem.get_members()|groupby(attribute="groupname") %}
+  <h2 class="grouptitle">{{group}} Detail</h2>
+  {% for member in members %}
     <h3>{{member.shortname}}</h3>
     <code>{{member.getPrename()}} {{member.shortname}}{{member.getPostname()}}</code><br>
     {{member.getLocationString(wwwroot, tree)|safe}}<br>
