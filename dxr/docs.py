@@ -35,7 +35,7 @@ class DocumentableEntity(object):
 
   def getLocationString(self, wwwroot, tree):
     locs = self.location.split(":")
-    filename = os.path.relpath(locs[0],"/src/OpenSkyscraper") # XXX
+    filename = locs[0]
     line = locs[1]
     return ("Defined at <tt><a href=\"%(wwwroot)s/%(tree)s/" +
         "%(filename)s#l%(line)s\">%(location)s</a></tt>") % {
@@ -67,6 +67,9 @@ class NamespaceEntity(DocumentableEntity):
 
   def getProlog(self):
     return self.getHeader()
+
+  def getSummaryLink(self):
+    return str(self.docid)
 
 class AggregateEntity(DocumentableEntity):
   def __init__(self, jsondata, docid, lazyloader):
@@ -114,76 +117,123 @@ class NamedList(object):
   def getMembers(self):
     return self.members
 
-allEntities = list()
-qualmap = dict()
+class DocumentationBuilder(object):
+    def __init__(self, tree):
+        self.tree = tree
+        self.allEntities = list()
+        self.qualmap = dict()
 
-def processDocumentation(doc):
-  lines = doc.split('\n')
-  outbuffer = ''
-  inPara = False
-  for line in lines:
-    trimmed = line.strip()
-    if inPara and trimmed == "":
-      outbuffer += "</p>"
+    def add_docs_from_tree(self, rootdir):
+        ''' Find all *.json files under rootdir and add them to the database. '''
+        for dirpath, dirs, files in os.walk(rootdir):
+            for f in files:
+                if f.endswith('.json'):
+                    self.add_docs_from_file(os.path.join(dirpath, f))
+
+    def add_docs_from_file(self, filename):
+        ''' Open the JSON file, which contains an array of documented entities,
+            process the data, and add it to our database. '''
+        with open(filename) as fd:
+            data = json.load(fd)
+
+        def add_this_and_children(jsondata):
+            number = self._add_or_merge_node(jsondata)
+            # Replace the children raw nodes with an actual number
+            for group in jsondata.get('members', []):
+                group['members'] = [add_this_and_children(sub)
+                                    for sub in group['members']]
+            return number
+
+        # For all nodes in the input, add them
+        for node in data:
+            add_this_and_children(node)
+
+    def _add_or_merge_node(self, jsonnode):
+        ''' Add the JSON documentation node to our list of known entities,
+            potentially merging it with other nodes in the process. This will
+            return the number of the node in the allEntities array. '''
+
+        nextnum = len(self.allEntities)
+        if 'qualname' in jsonnode:
+            # This has a qualifying name within the TU that we can use to merge.
+            # Get it and do so.
+            qname = jsonnode['qualname']
+            if qname in self.qualmap:
+                return self.qualmap[qname]
+
+            # No one else to merge -> add it.
+            self.qualmap[qname] = nextnum
+        self.allEntities.append(jsonnode)
+        return nextnum
+
+    def _clean_raw_node(self, node):
+        ''' Process the raw node to clean it up for final presentation view.
+            This will do things like fix documentation links, remove extra data,
+            and other similar nodes. '''
+
+        # Convert documentation as necessary
+        for key in ['fulldoc', 'briefdoc']:
+            if key in node:
+                node[key] = self.processDocumentation(node[key])
+
+        # Fix locations to be correct
+        if 'location' in node:
+            parts = node['location'].split(':')
+            parts[0] = os.path.relpath(os.path.realpath(parts[0]),
+                                       self.tree.source_folder)
+            node['location'] = ':'.join(parts)
+
+    def processDocumentation(self, doc):
+      lines = doc.split('\n')
+      outbuffer = ''
       inPara = False
-      continue
-    elif not inPara and trimmed != "":
-      outbuffer += "<p>"
-      inPara = True
-    if trimmed != "":
-      outbuffer += trimmed + " "
-  if inPara:
-    outbuffer += "</p>"
-  return outbuffer
+      for line in lines:
+        trimmed = line.strip()
+        if inPara and trimmed == "":
+          outbuffer += "</p>"
+          inPara = False
+          continue
+        elif not inPara and trimmed != "":
+          outbuffer += "<p>"
+          inPara = True
+        if trimmed != "":
+          outbuffer += trimmed + " "
+      if inPara:
+        outbuffer += "</p>"
+      return outbuffer
 
-def getNodeNumber(data):
-  num = len(allEntities)
-  if 'qualname' in data:
-    qname = data['qualname']
-    if qname in qualmap:
-      return qualmap[qname]
-    qualmap[qname] = num
-  if 'fulldoc' in data:
-    data['fulldoc'] = processDocumentation(data['fulldoc'])
-  allEntities.append(data)
-  return num
+    def output_to_database(self, conn):
+        ''' Completes post-processing of the documentation data and outputs the
+            final results to the DXR database. '''
+        # Clean up all of the raw nodes
+        for node in self.allEntities:
+            self._clean_raw_node(node)
 
-def grabDocs(path):
-  for dirpath, dirs, files in os.walk(path):
-    for f in files:
-      if f[-5:] == '.json':
-        appendJSONData(os.path.join(dirpath, f))
+        # Create the table in the database.
+        conn.executescript("""CREATE TABLE IF NOT EXISTS documentation (
+                               docid INTEGER NOT NULL PRIMARY KEY,
+                               docstart INTEGER NOT NULL,
+                               doclen INTEGER NOT NULL,
+                               kind VARCHAR(20) NOT NULL);""")
 
-def appendJSONData(filename):
-  with open(filename) as fd:
-    data = json.load(fd)
-
-  def recursiveAdd(jsondata):
-    number = getNodeNumber(jsondata)
-    for group in jsondata.get('members', []):
-      group['members'] = [recursiveAdd(sub) for sub in group['members']]
-    return number
-  for node in data:
-    recursiveAdd(node)
-  print '\n'.join(str(foo) for foo in allEntities)
-
-
-def buildDatabase(conn, tree):
-  conn.executescript("""CREATE TABLE IF NOT EXISTS documentation (
-    docid INTEGER NOT NULL PRIMARY KEY,
-    docstart INTEGER NOT NULL,
-    doclen INTEGER NOT NULL);""")
-  
-  needsComma = False
-  with open(os.path.join(tree.target_folder, ".dxr-docs.json"), 'w') as outfd:
-    for num in xrange(len(allEntities)):
-      outfd.write(',\n' if needsComma else '[')
-      needsComma = True
-      start = outfd.tell()
-      json.dump(allEntities[num], outfd)
-      conn.execute("""INSERT INTO documentation (docid, docstart, doclen)
-        VALUES (%d, %d, %d)""" % (num, start, outfd.tell() - start))
-    outfd.write(']')
+        # Write the output to a separate file to avoid cluttering the database.
+        # Note that this is a json file, but we can't just json.dump on all of
+        # our entities, since we use the database to get a specific byte range
+        # of the file.
+        docsout = os.path.join(self.tree.target_folder, ".dxr-docs.json")
+        needsComma = False
+        with open(docsout, 'w') as outfd:
+            for num in xrange(len(self.allEntities)):
+                outfd.write(',\n' if needsComma else '[')
+                needsComma = True
+                start = outfd.tell()
+                json.dump(self.allEntities[num], outfd)
+                conn.execute("""INSERT INTO documentation
+                                (docid, docstart, doclen, kind)
+                                VALUES (%d, %d, %d, ?)""" %
+                             (num, start, outfd.tell() - start),
+                             (self.allEntities[num]['doctype'],))
+            outfd.write(']')
 
 # Loaders for lazy database loading
 loaders = {
@@ -215,3 +265,10 @@ def getDocumentedEntity(conn, instance_path, tree, num):
   lazyloader = LazyDocumentationLoader(conn,
     os.path.join(instance_path, 'trees', tree, '.dxr-docs.json'))
   return lazyloader.getEntity(num)
+
+def get_global_list(conn, instance_path, tree):
+    lazyloader = LazyDocumentationLoader(conn,
+        os.path.join(instance_path, 'trees', tree, '.dxr-docs.json'))
+    return (lazyloader.getEntity(n['docid']) for n in conn.execute(
+        "SELECT docid FROM documentation WHERE kind=?", ("aggregate",))
+        .fetchall())

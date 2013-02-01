@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+
+{% block title %} Global Index - DXR Documentation {% endblock %}
+
+{% set state_eof = True %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{wwwroot}}/static/doc.css" />
+  <script src="{{wwwroot}}/static/panel.js"></script>
+  {% if error %}
+  <script>
+    window.addEventListener('load', function(){
+      // Write a the error message to search tip
+      dxr.setErrorTip("{{error}}");
+    });
+  </script>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<h1 class="grouptitle">Classes of {{tree}}</h1>
+<ul id="index">
+{% for member in list |sort(attribute="shortname") %}
+  <li><a href="{{member.getSummaryLink()}}">{{member.qualname}}</a></li>
+  {% endfor %}
+</ul>
+{% endblock %}

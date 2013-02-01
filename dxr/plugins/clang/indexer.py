@@ -45,9 +45,8 @@ def post_process(tree, conn):
     for f in os.listdir(temp_folder):
         csv_path = os.path.join(temp_folder, f)
         if os.path.isdir(csv_path):
-          dxr.docs.grabDocs(csv_path)
-          pass
-        elif csv_path[-4:] == '.csv':
+          tree.docbuilder.add_docs_from_tree(csv_path)
+        elif csv_path.endswith('.csv'):
           dump_indexer_output(conn, csv_path)
 
     fixup_scope(conn)

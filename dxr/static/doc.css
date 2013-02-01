@@ -18,11 +18,14 @@ table.docsummary td > p {
   margin: 0 0 0 0.5in;
 }
 
-h2.grouptitle {
+h1.grouptitle, h2.grouptitle {
   background-color: rgb(204, 204, 255);
   margin-bottom: 0px;
   padding: 3px;
   border: 2px ridge;
+}
+h1.grouptitle {
+  text-align: center;
 }
 
 div.docdetail {
@@ -41,4 +44,11 @@ body {
 table.docsummary a {
   color: blue;
   text-decoration: underline;
+}
+
+ul#index {
+    -moz-column-width: 20em;
+}
+ul#index li {
+    list-style: none;
 }

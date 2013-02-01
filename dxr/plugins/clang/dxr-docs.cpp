@@ -412,6 +412,28 @@ void LeafEntity::printJSONFields(raw_ostream &out) {
 //   postname: (T right, %Other% wrong) const
 //   location: file:line:col
 //   briefdoc, fulldoc: HTML descriptions
+class DocGen : public RecursiveASTVisitor<DocGen> {
+  DenseMap<const Decl *, DocumentableEntity *> documentedNodes;
+
+  ContainerEntity *getContainerForDecl(const Decl *d);
+
+  template <typename T> static T *getDef(T *decl) {
+    T *def = decl->getDefinition();
+    return def ? def : decl;
+  }
+
+public:
+
+  bool VisitTagDecl(TagDecl *d);
+  bool VisitEnumDecl(EnumDecl *d);
+  bool VisitCXXRecordDecl(CXXRecordDecl *d);
+  bool TraverseClassTemplateDecl(ClassTemplateDecl *ctd);
+  bool VisitEnumConstantDecl(EnumConstantDecl *d);
+  bool VisitFunctionDecl(FunctionDecl *d);
+  bool VisitNamespaceDecl(NamespaceDecl *d);
+
+  void extractDocumentation(raw_ostream &out);
+};
 
 ContainerEntity *DocGen::getContainerForDecl(const Decl *d) {
   const DeclContext *dc = d->getDeclContext();
@@ -678,7 +700,7 @@ void DocGen::extractDocumentation(raw_ostream &out) {
   out << "]";
 }
 
-void outputDocsForTU(clang::TranslationUnitDecl *decl, raw_ostream &out) {
+void outputDocsForTU(TranslationUnitDecl *decl, raw_ostream &out) {
   DocGen documenter;
   documenter.TraverseDecl(decl);
   documenter.extractDocumentation(out);

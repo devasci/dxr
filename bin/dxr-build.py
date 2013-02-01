@@ -367,12 +367,15 @@ def build_tree(tree, conn):
             print >> sys.stderr, '    | %s ' % '    | '.join(log_file)
         sys.exit(1)
 
+    # Add documentation database
+    tree.docbuilder = dxr.docs.DocumentationBuilder(tree)
+
     # Let plugins post process
     for indexer in indexers:
         indexer.post_process(tree, conn)
 
     # Build documentation database
-    dxr.docs.buildDatabase(conn, tree)
+    tree.docbuilder.output_to_database(conn)
 
 
 def finalize_database(conn):
