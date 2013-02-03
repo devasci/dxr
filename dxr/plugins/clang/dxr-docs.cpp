@@ -179,7 +179,7 @@ class ContainerEntity {
   std::vector<DocumentableEntity *> mEntities;
 
 public:
-  void addMemberEntity(StringRef name, DocumentableEntity *sub);
+  void addMemberEntity(DocumentableEntity *sub);
   virtual void printJSONFields(raw_ostream &out);
 
   static bool classof(const DocumentableEntity *ent) {
@@ -261,9 +261,11 @@ NamedEntity::NamedEntity(NamedDecl *nd)
 {
   const SourceManager &sm = nd->getASTContext().getSourceManager();
   PresumedLoc loc = sm.getPresumedLoc(nd->getLocation());
-  mFile = loc.getFilename();
-  mLine = loc.getLine();
-  mColumn = loc.getColumn();
+  if (loc.isValid()) {
+    mFile = loc.getFilename();
+    mLine = loc.getLine();
+    mColumn = loc.getColumn();
+  }
 }
 
 NamespaceEntity::NamespaceEntity(NamespaceDecl *nd)
@@ -281,7 +283,7 @@ LeafEntity::LeafEntity(NamedDecl *d, StringRef container)
 : DocumentableEntity(d, Leaf, container), NamedEntity(d) {
 }
 
-void ContainerEntity::addMemberEntity(StringRef name, DocumentableEntity *sub) {
+void ContainerEntity::addMemberEntity(DocumentableEntity *sub) {
   mEntities.push_back(sub);
   sub->setContained(true);
 }
@@ -455,13 +457,8 @@ bool DocGen::VisitTagDecl(TagDecl *d) {
 
   // Add this decl to its parent context
   ContainerEntity *cd = getContainerForDecl(d);
-  if (cd) {
-    const DeclContext *dc = d->getDeclContext();
-    const char *grouping = "Classes";
-    if (isa<CXXRecordDecl>(dc))
-      grouping = "Member classes";
-    cd->addMemberEntity(grouping, ent);
-  }
+  if (cd)
+    cd->addMemberEntity(ent);
 
   documentedNodes[d] = ent;
   return true;
@@ -564,7 +561,7 @@ bool DocGen::VisitEnumConstantDecl(EnumConstantDecl *d) {
 
   // Add the enum constant to the enum's list
   ClassEntity *ent = dyn_cast<ClassEntity>(lookup->second);
-  ent->addMemberEntity("Enum constants", leaf);
+  ent->addMemberEntity(leaf);
   return true;
 }
 
@@ -582,7 +579,15 @@ bool DocGen::VisitFunctionDecl(FunctionDecl *d) {
 
   const PrintingPolicy &pp(d->getASTContext().getPrintingPolicy());
 
-  LeafEntity *leaf = new LeafEntity(d, "Methods");
+  const char *grouping = "Functions";
+  if (construct)
+    grouping = "Constructors";
+  else if (destruct)
+    grouping = "Destructors";
+  else if (cxx)
+    grouping = "Methods";
+  LeafEntity *leaf = new LeafEntity(d, grouping);
+
   std::string preName, postName;
 
   // Add in specifiers for the function
@@ -647,14 +652,7 @@ bool DocGen::VisitFunctionDecl(FunctionDecl *d) {
   if (!cd)
     return true;
 
-  const char *grouping = "Functions";
-  if (construct)
-    grouping = "Constructors";
-  else if (destruct)
-    grouping = "Destructors";
-  else if (cxx)
-    grouping = "Member Methods";
-  cd->addMemberEntity(grouping, leaf);
+  cd->addMemberEntity(leaf);
 
   return true;
 }
@@ -672,7 +670,7 @@ bool DocGen::VisitNamespaceDecl(NamespaceDecl *d) {
   // Add to the outer namespace, if present
   ContainerEntity *cd = getContainerForDecl(d);
   if (cd)
-    cd->addMemberEntity("Subnamespaces", ent);
+    cd->addMemberEntity(ent);
   return true;
 }
 

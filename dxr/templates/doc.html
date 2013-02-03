@@ -28,7 +28,7 @@
 <div class="topdoc">{{docitem.getFullDocumentation()|safe}}</div>
 <hr>
 <!-- Short documentation tables -->
-{% for group, members in docitem.get_members()|groupby(attribute="groupname") %}
+{% for group, members in docitem.get_members(True)|groupby(attribute="groupname") %}
   <h2 class="grouptitle">{{group}} Overview</h2>
   <table class="docsummary">
     {% for member in members|sort(attribute="shortname") %}
@@ -40,7 +40,7 @@
 {% endfor %}
 
 <!-- Detailed documentation tables -->
-{% for group, members in docitem.get_members()|groupby(attribute="groupname") %}
+{% for group, members in docitem.get_members(False)|groupby(attribute="groupname") %}
   <h2 class="grouptitle">{{group}} Detail</h2>
   {% for member in members %}
     <h3>{{member.shortname}}</h3>

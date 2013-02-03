@@ -23,11 +23,15 @@ class DocumentableEntity(object):
       setattr(self, key, value)
     self._resolvedMembers = False
 
-  def get_members(self):
+  def get_members(self, includeall):
     if not self._resolvedMembers:
       self.members = [self._lazyloader.getEntity(n) for n in self.members]
       self._resolvedMembers = True
-    return self.members
+    if includeall:
+      return self.members
+    else:
+        return filter(lambda x: isinstance(x, LeafEntity), self.members)
+
 
   def getLocationString(self, wwwroot, tree):
     locs = self.location.split(":")
