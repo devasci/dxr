@@ -47,10 +47,16 @@ table.docsummary a {
 }
 
 ul#index {
-    -moz-column-width: 20em;
-    column-width: 20em;
-    padding-left: 0;
+  -moz-column-width: 20em;
+  column-width: 20em;
+  padding-left: 0;
 }
 ul#index li {
-    list-style: none;
+  list-style: none;
+}
+
+/* Hack to get anchors to work properly */
+h3:target {
+  border-top: 50px solid transparent;
+  margin-top: -50px;
 }

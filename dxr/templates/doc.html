@@ -43,7 +43,7 @@
 {% for group, members in docitem.get_members(False)|groupby(attribute="groupname") %}
   <h2 class="grouptitle">{{group}} Detail</h2>
   {% for member in members %}
-    <h3>{{member.shortname}}</h3>
+    <h3 id="member{{member.docid}}">{{member.shortname}}</h3>
     <code>{{member.getPrename()}} {{member.shortname}}{{member.getPostname()}}</code><br>
     {{member.getLocationString(wwwroot, tree)|safe}}<br>
     <div class="docdetail">{{member.getFullDocumentation()|safe}}</div>

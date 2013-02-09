@@ -115,15 +115,15 @@ class AggregateEntity(DocumentableEntity):
     return str(self.docid)
 
 class LeafEntity(DocumentableEntity):
-  def __init__(self, jsondata, docid, lazyloader):
-    DocumentableEntity.__init__(self, jsondata, docid, lazyloader)
+    def __init__(self, jsondata, docid, lazyloader):
+        DocumentableEntity.__init__(self, jsondata, docid, lazyloader)
 
-  def getPrename(self):
-    return self.prename
-  def getPostname(self):
-    return self.postname
-  def getSummaryLink(self):
-    return "" # XXX
+    def getPrename(self):
+        return self.prename
+    def getPostname(self):
+        return self.postname
+    def getSummaryLink(self):
+        return "#member%d" % self.docid # XXX
 
 
 class DocumentationBuilder(object):
@@ -240,23 +240,23 @@ class DocumentationBuilder(object):
         self.allEntities = newList
 
     def processDocumentation(self, doc):
-      lines = doc.split('\n')
-      outbuffer = ''
-      inPara = False
-      for line in lines:
-        trimmed = line.strip()
-        if inPara and trimmed == "":
-          outbuffer += "</p>"
-          inPara = False
-          continue
-        elif not inPara and trimmed != "":
-          outbuffer += "<p>"
-          inPara = True
-        if trimmed != "":
-          outbuffer += trimmed + " "
-      if inPara:
-        outbuffer += "</p>"
-      return outbuffer
+        lines = doc.split('\n')
+        outbuffer = ''
+        inPara = False
+        for line in lines:
+            trimmed = line.strip()
+            if inPara and trimmed == "":
+                outbuffer += "</p>"
+                inPara = False
+                continue
+            elif not inPara and trimmed != "":
+                outbuffer += "<p>"
+                inPara = True
+            if trimmed != "":
+                outbuffer += trimmed + " "
+        if inPara:
+            outbuffer += "</p>"
+        return outbuffer
 
     def output_to_database(self, conn):
         ''' Completes post-processing of the documentation data and outputs the
@@ -320,9 +320,9 @@ class LazyDocumentationLoader(object):
     return loaders[data["doctype"]](data, number, self)
 
 def getDocumentedEntity(conn, instance_path, tree, num):
-  lazyloader = LazyDocumentationLoader(conn,
-    os.path.join(instance_path, 'trees', tree, '.dxr-docs.json'))
-  return lazyloader.getEntity(num)
+    lazyloader = LazyDocumentationLoader(conn,
+        os.path.join(instance_path, 'trees', tree, '.dxr-docs.json'))
+    return lazyloader.getEntity(num)
 
 global_lists = [
     ("Namespaces", "namespace"),
