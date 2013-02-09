@@ -23,7 +23,7 @@
 <hr>
 {% if not docitem.skip_prolog() %}
   {{docitem.getLocationString(wwwroot, tree)|safe}}<br>
-  <code>{{docitem.getProlog()}}</code>
+  <code>{{docitem.getProlog()|safe}}</code>
 {% endif %}
 <div class="topdoc">{{docitem.getFullDocumentation()|safe}}</div>
 <hr>
@@ -32,8 +32,8 @@
   <h2 class="grouptitle">{{group}} Overview</h2>
   <table class="docsummary">
     {% for member in members|sort(attribute="shortname") %}
-      <tr><td><code>{{member.getPrename()}}</code></td>
-          <td><code><a href="{{member.getSummaryLink()}}">{{member.shortname}}</a>{{member.getPostname()}}</code>
+      <tr><td><code>{{member.getPrename()|safe}}</code></td>
+          <td><code><a href="{{member.getSummaryLink()}}">{{member.shortname}}</a>{{member.getPostname()|safe}}</code>
           <p>{{member.getBriefDocumentation()|safe}}</p></tr>
     {% endfor %}
   </table>
@@ -44,7 +44,7 @@
   <h2 class="grouptitle">{{group}} Detail</h2>
   {% for member in members %}
     <h3 id="member{{member.docid}}">{{member.shortname}}</h3>
-    <code>{{member.getPrename()}} {{member.shortname}}{{member.getPostname()}}</code><br>
+    <code>{{member.getPrename()|safe}} {{member.shortname}}{{member.getPostname()|safe}}</code><br>
     {{member.getLocationString(wwwroot, tree)|safe}}<br>
     <div class="docdetail">{{member.getFullDocumentation()|safe}}</div>
     <hr>

@@ -41,7 +41,7 @@ body {
   margin-right: 0.3em;
 }
 
-table.docsummary a {
+code a {
   color: blue;
   text-decoration: underline;
 }

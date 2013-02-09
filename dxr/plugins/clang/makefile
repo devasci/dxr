@@ -8,7 +8,7 @@ build: libclang-index-plugin.so
 %.o: %.cpp $(wildcard *.h)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-libclang-index-plugin.so: dxr-index.o sha1.o dxr-docs.o
+libclang-index-plugin.so: dxr-index.o sha1.o dxr-docs.o TypePrinter.o
 	$(CXX) $(LDFLAGS) $^ -o $@
 
 check: build

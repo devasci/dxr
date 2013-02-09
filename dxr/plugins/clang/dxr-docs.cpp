@@ -86,15 +86,8 @@ std::string getQualifiedName(const NamedDecl &d) {
   return ret;
 }
 
-
-void printQualType(QualType type, StringRef name, std::string &answer,
-    const PrintingPolicy &pp) {
-  answer += type.getAsString(pp);
-  if (!name.empty()) {
-    answer += ' ';
-    answer += name;
-  }
-}
+extern void printQualType(QualType type, StringRef name, std::string &answer,
+    const PrintingPolicy &pp);
 
 void appendTemplateArguments(const TemplateDecl *td, std::string &outstring) {
   const TemplateParameterList *tpl = td->getTemplateParameters();
