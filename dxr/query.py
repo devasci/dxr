@@ -76,7 +76,7 @@ class Query:
                     else:
                         self.phrases.append(token["keyword"])
             if token["notphrase"]:
-                self.notphrase.append(token["notphrase"])
+                self.notphrases.append(token["notphrase"])
     def single_term(self):
         """ Returns the single term making up the query, None for complex queries """
         count = 0
@@ -185,8 +185,11 @@ def fetch_results(conn, query,
             #  extent, and this needs to be supported and used in filters).
             estart, eend, keylist = offsets[i]
 
-            # Skip if we didn't get a new line
+            # Count the newlines from the top of the file to get the line
+            # number. Maybe we could optimize this by storing the line number
+            # in the index with the extent.
             line_diff = content.count("\n", last_pos, estart)
+            # Skip if we didn't get a new line
             if line_diff == 0 and last_pos > 0:
                 continue 
             line_number += line_diff
@@ -336,7 +339,11 @@ def direct_result(conn, query):
 
 def like_escape(val):
     """ Escape for usage in as argument to the LIKE operator """
-    return val.replace("\\", "\\\\").replace("_", "\\_").replace("%", "\\%")
+    return (val.replace("\\", "\\\\")
+               .replace("_", "\\_")
+               .replace("%", "\\%")
+               .replace("?", "_")
+               .replace("*", "%"))
 
 
 class genWrap:
@@ -506,7 +513,7 @@ class ExistsLikeFilter(SearchFilter):
         for arg in query.params[self.param]:
             yield (
                             "EXISTS (%s)" % (self.filter_sql % self.like_expr),
-                            ['%' + like_escape(arg) + '%'],
+                            [like_escape(arg)],
                             self.ext_sql is not None
                         )
         for arg in query.params["+" + self.param]:
@@ -524,13 +531,13 @@ class ExistsLikeFilter(SearchFilter):
         for arg in query.params["-" + self.param]:
             yield (
                             "NOT EXISTS (%s)" % (self.filter_sql % self.like_expr),
-                            ['%' + like_escape(arg) + '%'],
+                            [like_escape(arg)],
                             False
                         )
     def extents(self, conn, query, fileid):
         if self.ext_sql:
             for arg in query.params[self.param]:
-                params = [fileid, '%' + like_escape(arg) + '%']
+                params = [fileid, like_escape(arg)]
                 def builder():
                     sql = self.ext_sql % self.like_expr
                     for start, end in _execute_sql(conn, sql, params):
@@ -641,11 +648,11 @@ filters.append(UnionFilter([
 filters.append(UnionFilter([
   ExistsLikeFilter(
     param         = "type-ref",
-    filter_sql    = """SELECT 1 FROM types, refs
+    filter_sql    = """SELECT 1 FROM types, type_refs AS refs
                        WHERE %s
                          AND types.id = refs.refid AND refs.file_id = files.id
                     """,
-    ext_sql       = """SELECT refs.extent_start, refs.extent_end FROM refs
+    ext_sql       = """SELECT refs.extent_start, refs.extent_end FROM type_refs AS refs
                        WHERE refs.file_id = ?
                          AND EXISTS (SELECT 1 FROM types
                                      WHERE %s
@@ -657,11 +664,11 @@ filters.append(UnionFilter([
   ),
   ExistsLikeFilter(
     param         = "type-ref",
-    filter_sql    = """SELECT 1 FROM typedefs, refs
+    filter_sql    = """SELECT 1 FROM typedefs, typedef_refs AS refs
                        WHERE %s
                          AND typedefs.id = refs.refid AND refs.file_id = files.id
                     """,
-    ext_sql       = """SELECT refs.extent_start, refs.extent_end FROM refs
+    ext_sql       = """SELECT refs.extent_start, refs.extent_end FROM typedef_refs AS refs
                        WHERE refs.file_id = ?
                          AND EXISTS (SELECT 1 FROM typedefs
                                      WHERE %s
@@ -693,11 +700,11 @@ filters.append(ExistsLikeFilter(
 # function-ref filter
 filters.append(ExistsLikeFilter(
     param         = "function-ref",
-    filter_sql    = """SELECT 1 FROM functions, refs
+    filter_sql    = """SELECT 1 FROM functions, function_refs AS refs
                        WHERE %s
                          AND functions.id = refs.refid AND refs.file_id = files.id
                     """,
-    ext_sql       = """SELECT refs.extent_start, refs.extent_end FROM refs
+    ext_sql       = """SELECT refs.extent_start, refs.extent_end FROM function_refs AS refs
                        WHERE refs.file_id = ?
                          AND EXISTS (SELECT 1 FROM functions
                                      WHERE %s
@@ -729,11 +736,11 @@ filters.append(ExistsLikeFilter(
 # var-ref filter
 filters.append(ExistsLikeFilter(
     param         = "var-ref",
-    filter_sql    = """SELECT 1 FROM variables, refs
+    filter_sql    = """SELECT 1 FROM variables, variable_refs AS refs
                        WHERE %s
                          AND variables.id = refs.refid AND refs.file_id = files.id
                     """,
-    ext_sql       = """SELECT refs.extent_start, refs.extent_end FROM refs
+    ext_sql       = """SELECT refs.extent_start, refs.extent_end FROM variable_refs AS refs
                        WHERE refs.file_id = ?
                          AND EXISTS (SELECT 1 FROM variables
                                      WHERE %s
@@ -765,11 +772,11 @@ filters.append(ExistsLikeFilter(
 # macro-ref filter
 filters.append(ExistsLikeFilter(
     param         = "macro-ref",
-    filter_sql    = """SELECT 1 FROM macros, refs
+    filter_sql    = """SELECT 1 FROM macros, macro_refs AS refs
                        WHERE %s
                          AND macros.id = refs.refid AND refs.file_id = files.id
                     """,
-    ext_sql       = """SELECT refs.extent_start, refs.extent_end FROM refs
+    ext_sql       = """SELECT refs.extent_start, refs.extent_end FROM macro_refs AS refs
                        WHERE refs.file_id = ?
                          AND EXISTS (SELECT 1 FROM macros
                                      WHERE %s

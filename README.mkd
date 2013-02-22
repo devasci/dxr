@@ -18,13 +18,43 @@ to deploy and/or develop DXR.
 
 Quick Start
 -----------
-If you want to try DXR on a HelloWorld-size project, one is located in
-`tests/json-test/`. First, read and install dependencies from
+To try out DXR on a HelloWorld-size project...
+
+    cd dxr  # (the top level of the repository, not the dxr folder within it)
+    vagrant up
+    vagrant ssh
+
+On the VM...
+
+    cd ~/dxr
+    make
+    cd ~/dxr/tests/test_basic
+    make
+    dxr-serve.py target
+
+Then, on your host box, surf to http://33.33.33.77:8000/, and poke around to
+your heart's content. You may have to substitute the IP address of your Vagrant
+machine.
+
+
+Installing on a Real Machine
+----------------------------
+To install DXR on a machine of your choice, install the dependencies in
 `docs/deployment.mkd`. Then, install the `dxr` Python package, either by
 running `python2.6 setup.py develop` (if you want to hack on DXR itself) or
-`python2.6 setup.py install` (if you don't). Finally, run `make` from
-`tests/json-test/` to build the index. The `makefile` contains instruction for
-launching the test server as well.
+`python2.6 setup.py install`.
+
+If you'd like to install it as non-root (recommended), use virtualenv:
+
+    virtualenv my-dxr-env
+    source my-dxr-env/bin/activate  # You'll have to repeat this line each time
+                                    # you want to use DXR in a new shell.
+    pip install -r requirements.txt
+    python setup.py develop         # Magic path munging will make this the
+                                    # copy of Python in the virtualenv.
+
+Finally, run `make` from `tests/test_basic` to build a sample index and
+`dxr-serve.py tests/test_basic/target` to start the server.
 
 
 Things To Do
@@ -35,8 +65,7 @@ _This is a short list of major things that could be done to improve DXR._
      - Remove plugin specific tables
      - Provide data collection API for plugins (ie. no direct database access for plugins)
      - Optimize schema for search queries
-        - Split refs into function-refs, type-refs, etc.
-        - Store extents as a blob in *-refs, types, functions, etc.
+        - Store extents as a blob in *_refs, types, functions, etc.
         - Use trilite for functions, types, macros, etc.
         - Store the transitive closure of indirect calls
      - Port search logic to new schema
