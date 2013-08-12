@@ -5,7 +5,7 @@ from pygments.token import Token
 import os, sys
 import fnmatch
 
-class Pygmentizer:
+class Pygmentizer(object):
     """ Pygmentizer add syntax regions for file """
     def __init__(self, text, lexer):
         self.text   = text
@@ -48,7 +48,6 @@ def htmlify(path, text):
         if fnmatch.fnmatchcase(filename, "*.jsm"):
             lexer = pygments.lexers.JavascriptLexer(**options)
         else:
-            print >> sys.stderr, "pygments: No lexer for '%s'" % filename
             return None
     return Pygmentizer(text, lexer)
 

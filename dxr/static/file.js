@@ -51,7 +51,7 @@ String.prototype.regexLastIndexOf = function(regex, startpos){
 }
 
 /** Initialize the context menu */
-function init_menu(){
+function initMenu(){
   var pre = document.querySelector(".file-lines pre");
   // Show menu when text is clicked
   pre.addEventListener('click', function(e){
@@ -75,7 +75,7 @@ function init_menu(){
         icon:   'search', 
         text:   "Search for \"" + htmlEntities(word) + "\"",
         title:  "Search for documents with the substring \"" + htmlEntities(word) + "\"", 
-        href:   wwwroot + "/search?tree=" + encodeURIComponent(dxr.tree()) + "&q=" + encodeURIComponent(word)
+        href:   wwwroot + "/" + encodeURIComponent(dxr.tree()) + "/search?q=" + encodeURIComponent(word)
       });
     }
     // Append menu from target, if any
@@ -123,28 +123,19 @@ function findPosTop(obj) {
   return top;
 }
 
-/** Find object position from the left */
-function findPosLeft(obj) {
-  var left = 0;
-  do{
-    left += obj.offsetLeft;
-  }while(obj = obj.offsetParent);
-  return left;
-}
-
 /** Initialize search tips */
-function init_tip(){
+function initTip(){
   // Parse querystring for from=
-  var query = null
+  var query = null;
   var items = window.location.search.substr(1).split("&");
   for(var i = 0; i < items.length; i++){
     var keyvalue = items[i].split("=");
     if(keyvalue[0] == "from")
-      query = keyvalue[1];
+      query = decodeURIComponent(keyvalue[1]);
   }
   if(query){
     // Set a nice search tip, so people can go the results
-    var url = wwwroot + "/search?tree=" + dxr.tree() + "&q=" + query + "&redirect=false";
+    var url = wwwroot + "/" + encodeURIComponent(dxr.tree()) + "/search?q=" + encodeURIComponent(query) + "&redirect=false";
     text = ("You've been taken to a direct result " +
                      "<a href='{{url}}'>click here</a>" + 
                      " to see all search results").replace("{{url}}", url);
@@ -245,8 +236,8 @@ function hijackBlame(){
 /** Initialize everything */
 window.addEventListener('load', function (){
   window.addEventListener('hashchange', hashchanged, false);
-  init_tip();
-  init_menu();
+  initTip();
+  initMenu();
   hijackBlame();
   setTimeout(hashchanged, 0);
 }, false);

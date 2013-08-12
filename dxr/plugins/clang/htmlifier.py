@@ -4,8 +4,10 @@ import fnmatch
 import clang.tokenizers as tokenizers
 import urllib, re
 
+from dxr.utils import search_url
 
-class ClangHtmlifier:
+
+class ClangHtmlifier(object):
     """ Pygmentizer add syntax regions for file """
     def __init__(self, tree, conn, path, text, file_id):
         self.tree    = tree
@@ -125,6 +127,24 @@ class ClangHtmlifier:
         for start, end, qualname in self.conn.execute(sql, args):
             yield start, end, self.typedef_menu(qualname)
 
+        # Extents for namespaces defined here
+        sql = """
+            SELECT extent_start, extent_end, qualname
+                FROM namespaces
+              WHERE file_id = ?
+        """
+        for start, end, qualname in self.conn.execute(sql, args):
+            yield start, end, self.namespace_menu(qualname)
+
+        # Extents for namespace aliases defined here
+        sql = """
+            SELECT extent_start, extent_end, qualname
+                FROM namespace_aliases
+              WHERE file_id = ?
+        """
+        for start, end, qualname in self.conn.execute(sql, args):
+            yield start, end, self.namespace_alias_menu(qualname)
+
         # Extents for macros defined here
         sql = """
             SELECT file_line, file_col, name
@@ -180,7 +200,7 @@ class ClangHtmlifier:
             self.add_jump_definition(menu, path, line)
             yield start, end, menu
 
-        # Add references to functions
+        # Add references to variables
         sql = """
             SELECT refs.extent_start, refs.extent_end,
                           variables.qualname,
@@ -194,7 +214,34 @@ class ClangHtmlifier:
             self.add_jump_definition(menu, path, line)
             yield start, end, menu
 
-        # Add references to functions
+        # Add references to namespaces
+        sql = """
+            SELECT refs.extent_start, refs.extent_end,
+                          namespaces.qualname,
+                          (SELECT path FROM files WHERE files.id = namespaces.file_id),
+                          namespaces.file_line
+                FROM namespaces, namespace_refs AS refs
+              WHERE namespaces.id = refs.refid AND refs.file_id = ?
+        """
+        for start, end, qualname, path, line in self.conn.execute(sql, args):
+            menu = self.namespace_menu(qualname)
+            yield start, end, menu
+
+        # Add references to namespace aliases
+        sql = """
+            SELECT refs.extent_start, refs.extent_end,
+                          namespace_aliases.qualname,
+                          (SELECT path FROM files WHERE files.id = namespace_aliases.file_id),
+                          namespace_aliases.file_line
+                FROM namespace_aliases, namespace_alias_refs AS refs
+              WHERE namespace_aliases.id = refs.refid AND refs.file_id = ?
+        """
+        for start, end, qualname, path, line in self.conn.execute(sql, args):
+            menu = self.namespace_alias_menu(qualname)
+            self.add_jump_definition(menu, path, line)
+            yield start, end, menu
+
+        # Add references to macros
         sql = """
             SELECT refs.extent_start, refs.extent_end,
                           macros.name,
@@ -230,7 +277,7 @@ class ClangHtmlifier:
                     path  = rows[0][0]
                     start = token.start + match.start(1)
                     end   = token.start + match.end(1)
-                    url   = self.tree.config.wwwroot + '/' + self.tree.name + '/' + path
+                    url   = self.tree.config.wwwroot + '/' + self.tree.name + '/source/' + path
                     menu  = [{
                         'text':   "Jump to file",
                         'title':  "Jump to what is likely included there",
@@ -251,9 +298,9 @@ class ClangHtmlifier:
 
     def search(self, query):
         """ Auxiliary function for getting the search url for query """
-        url = self.tree.config.wwwroot + "/search?tree=" + self.tree.name
-        url += "&q=" + urllib.quote(query)
-        return url
+        return search_url(self.tree.config.wwwroot,
+                          self.tree.name,
+                          query)
 
     def quote(self, qualname):
         """ Wrap qualname in quotes if it contains spaces """
@@ -264,7 +311,7 @@ class ClangHtmlifier:
     def add_jump_definition(self, menu, path, line):
         """ Add a jump to definition to the menu """
         # Definition url
-        url = self.tree.config.wwwroot + '/' + self.tree.name + '/' + path
+        url = self.tree.config.wwwroot + '/' + self.tree.name + '/source/' + path
         url += "#l%s" % line
         menu.insert(0, { 
             'text':   "Jump to definition",
@@ -277,6 +324,12 @@ class ClangHtmlifier:
         """ Build menu for type """
         menu = []
         # Things we can do with qualname
+        menu.append({
+            'text':   "Find declarations",
+            'title':  "Find declarations of this class",
+            'href':   self.search("+type-decl:%s" % self.quote(qualname)),
+            'icon':   'reference'  # FIXME?
+        })
         if kind == 'class' or kind == 'struct':
             menu.append({
                 'text':   "Find sub classes",
@@ -320,7 +373,12 @@ class ClangHtmlifier:
     def variable_menu(self, qualname):
         """ Build menu for a variable """
         menu = []
-        # Well, what more than references can we do?
+        menu.append({
+            'text':   "Find declarations",
+            'title':  "Find declarations of this variable",
+            'href':   self.search("+var-decl:%s" % self.quote(qualname)),
+            'icon':   'reference' # FIXME?
+        })
         menu.append({
             'text':   "Find references",
             'title':  "Find reference to this variable",
@@ -328,6 +386,36 @@ class ClangHtmlifier:
             'icon':   'field'
         })
         # TODO Investigate whether assignments and usages is possible and useful?
+        return menu
+
+
+    def namespace_menu(self, qualname):
+        """ Build menu for a namespace """
+        menu = []
+        menu.append({
+            'text':   "Find definitions",
+            'title':  "Find definitions of this namespace",
+            'href':   self.search("+namespace:%s" % self.quote(qualname)),
+            'icon':   'jump'
+        })
+        menu.append({
+            'text':   "Find references",
+            'title':  "Find references to this namespace",
+            'href':   self.search("+namespace-ref:%s" % self.quote(qualname)),
+            'icon':   'reference'
+        })
+        return menu
+
+
+    def namespace_alias_menu(self, qualname):
+        """ Build menu for a namespace """
+        menu = []
+        menu.append({
+            'text':   "Find references",
+            'title':  "Find references to this namespace alias",
+            'href':   self.search("+namespace-alias-ref:%s" % self.quote(qualname)),
+            'icon':   'reference'
+        })
         return menu
 
 
@@ -349,8 +437,14 @@ class ClangHtmlifier:
         menu = []
         # Things we can do with qualified name
         menu.append({
+            'text':   "Find declarations",
+            'title':  "Find declarations of this function",
+            'href':   self.search("+function-decl:%s" % self.quote(qualname)),
+            'icon':   'reference'  # FIXME?
+        })
+        menu.append({
             'text':   "Find callers",
-            'title':  "Find functions that calls this function",
+            'title':  "Find functions that call this function",
             'href':   self.search("+callers:%s" % self.quote(qualname)),
             'icon':   'method'
         })
@@ -362,11 +456,10 @@ class ClangHtmlifier:
         })
         menu.append({
             'text':   "Find references",
-            'title':  "Find references of this function",
+            'title':  "Find references to this function",
             'href':   self.search("+function-ref:%s" % self.quote(qualname)),
             'icon':   'reference'
         })
-        #TODO Jump between declaration and definition
         return menu
 
 

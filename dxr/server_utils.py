@@ -1,21 +1,10 @@
 import ctypes
 import os.path
-import sqlite3
 import sys
 
+import dxr.utils  # Load trilite before we load sqlite3. Here be dragons. Reorder these import normally once we merge connect_db and connect_database.
+import sqlite3
 
-# Load trilite
-_trilite_loaded = False
-def load_tokenizer():
-    global _trilite_loaded
-    if _trilite_loaded:
-        return
-    try:
-        ctypes.CDLL("libtrilite.so").load_trilite_extension()
-        _trilite_loaded = True
-        return True
-    except:
-        return False
 
 # This makes results a lot more fun!
 def _collate_loc(str1, str2):
@@ -28,8 +17,8 @@ def _collate_loc(str1, str2):
     return cmp(parts1, parts2)
 
 # Get database connection for tree
+# TODO: Why do both this and connect_database() exist?
 def connect_db(tree, instance_path):
-    load_tokenizer()
     dbname = os.path.join(instance_path, 'trees', tree, '.dxr-xref.sqlite')
     try:
         conn = sqlite3.connect(dbname)

@@ -3,7 +3,7 @@ import sys
 # Prevent spurious errors during `python setup.py test`, a la
 # http://www.eby-sarna.com/pipermail/peak/2010-May/003357.html:
 try:
-    import multiprocessing
+    import concurrent.futures
 except ImportError:
     pass
 
@@ -20,8 +20,12 @@ setup(
     license='MIT',
     packages=find_packages(exclude=['ez_setup']),
     scripts=['bin/dxr-build.py', 'bin/dxr-serve.py'],
-    install_requires=['Flask>=0.9', 'Pygments>=1.4', 'Jinja2>=2.6'],
+    install_requires=['Flask>=0.9',
+                      'futures>=2.1.1',
+                      'Jinja2>=2.6',
+                      'Pygments>=1.4'],
     tests_require=['nose'],
+    test_suite='nose.collector',
     url='https://github.com/mozilla/dxr',
     include_package_data=True,
     zip_safe=False,  # So we can find dxr-worker.py as a file to run it as a
