@@ -23,43 +23,55 @@ def escape_html(string):
     return string
 
 class DocumentableEntity(object):
-  def __init__(self, jsondata, docid, lazyloader):
-    self.docid = docid
-    self._lazyloader = lazyloader
-    for key, value in jsondata.iteritems():
-      setattr(self, key, value)
-    self._resolvedMembers = False
+    ''' The base class of anything that can have some sort of documentation
+        applied to it.
 
-  def get_members(self, includeall):
-    if not self._resolvedMembers:
-      self.members = [self._lazyloader.getEntity(n) for n in self.members]
-      self._resolvedMembers = True
-    if includeall:
-      return self.members
-    else:
-        return filter(lambda x: isinstance(x, LeafEntity), self.members)
+        Documentation is generally stored as sets of JSON files. Every
+        refinement of a documentable thing adds more members that are expected
+        or allowed in the JSON entity.
 
+        The methods and fields that are used by this type are:
+        briefdoc [string]: The quick documentation blurb.
+        fulldoc [string]: The full text of documentation, unparsed.
+        location [string]: The location of the entity, in file:line:col format.
+    '''
 
-  def getLocationString(self, wwwroot, tree):
-    locs = self.location.split(":")
-    filename = locs[0]
-    line = locs[1]
-    return ("Defined at <tt><a href=\"%(wwwroot)s/%(tree)s/" +
-        "%(filename)s#l%(line)s\">%(location)s</a></tt>") % {
-        "filename": filename,
-        "wwwroot": wwwroot,
-        "tree": tree,
-        "line": line,
-        "location": self.location}
+    def __init__(self, jsondata, docid, lazyloader):
+        self.docid = docid
+        self._lazyloader = lazyloader
+        for key, value in jsondata.iteritems():
+            setattr(self, key, value)
+        self._resolvedMembers = False
 
-  def getBriefDocumentation(self):
-    return self.briefdoc
+    def get_members(self, includeall):
+        if not self._resolvedMembers:
+            self.members = [self._lazyloader.getEntity(n) for n in self.members]
+            self._resolvedMembers = True
+        if includeall:
+            return self.members
+        else:
+            return filter(lambda x: isinstance(x, LeafEntity), self.members)
 
-  def getFullDocumentation(self):
-    return self.fulldoc
+    def getLocationString(self, wwwroot, tree):
+        locs = self.location.split(":")
+        filename = locs[0]
+        line = locs[1]
+        return ("Defined at <tt><a href=\"%(wwwroot)s/%(tree)s/source/" +
+            "%(filename)s#l%(line)s\">%(location)s</a></tt>") % {
+            "filename": filename,
+            "wwwroot": wwwroot,
+            "tree": tree,
+            "line": line,
+            "location": self.location}
 
-  def skip_prolog(self):
-    return False
+    def getBriefDocumentation(self):
+        return self.briefdoc
+
+    def getFullDocumentation(self):
+        return self.fulldoc
+
+    def skip_prolog(self):
+        return False
 
 class FileEntity(DocumentableEntity):
     def __init__(self, jsondata, docid, lazyloader):

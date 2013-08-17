@@ -86,6 +86,20 @@ std::string getQualifiedName(const NamedDecl &d) {
   return ret;
 }
 
+/// Provide a definition should one exist for the named declaration
+static const NamedDecl *getDefinition(const NamedDecl *d) {
+  if (const TagDecl *td = dyn_cast<TagDecl>(d))
+    return td->getDefinition();
+  if (const VarDecl *vd = dyn_cast<VarDecl>(d))
+    return vd->getDefinition();
+  if (const FunctionDecl *fd = dyn_cast<FunctionDecl>(d)) {
+    const FunctionDecl* def;
+    if (fd->hasBody(def))
+      return def;
+  }
+  return NULL;
+}
+
 extern void printQualType(QualType type, StringRef name, std::string &answer,
     const PrintingPolicy &pp);
 
@@ -165,7 +179,7 @@ protected:
   virtual void printJSONFields(raw_ostream &out);
 
 public:
-  NamedEntity(NamedDecl *nd);
+  NamedEntity(const NamedDecl *nd);
 };
 
 class ContainerEntity {
@@ -248,10 +262,15 @@ DocumentableEntity::DocumentableEntity(const Decl *source, DocumentedType t,
     mFullDocumentation = convertToHTML(comment);
 }
 
-NamedEntity::NamedEntity(NamedDecl *nd)
+NamedEntity::NamedEntity(const NamedDecl *nd)
 : mQualifiedName(getQualifiedName(*nd)),
   mShortName(nd->getNameAsString())
 {
+  // Make sure the location is pointing to a definition if it exists
+  const NamedDecl *def = getDefinition(nd);
+  if (def)
+    nd = def;
+
   const SourceManager &sm = nd->getASTContext().getSourceManager();
   PresumedLoc loc = sm.getPresumedLoc(nd->getLocation());
   if (loc.isValid()) {
@@ -659,7 +678,7 @@ bool DocGen::VisitNamespaceDecl(NamespaceDecl *d) {
 
   NamespaceEntity *ent = new NamespaceEntity(d);
   documentedNodes[d] = ent;
-  
+
   // Add to the outer namespace, if present
   ContainerEntity *cd = getContainerForDecl(d);
   if (cd)
